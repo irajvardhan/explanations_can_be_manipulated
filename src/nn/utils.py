@@ -62,9 +62,11 @@ def get_expl(model, x, method, desired_index=None):
     """
     x.requires_grad = True
     acc, class_idx = model.classify(x)
+    #print('acc: {} and class_idx: {}'.format(acc, class_idx))
+    
     if desired_index is None:
         desired_index = class_idx
-
+    
     if method == ExplainingMethod.integrated_grad:
         # calculate the integrand in one batch
         # we use DataParallel mode of model to fit the batch in memory of (multiple) gpu(s)

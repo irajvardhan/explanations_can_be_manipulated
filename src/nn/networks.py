@@ -57,6 +57,7 @@ class ExplainableNet(nn.Module):
                                       lrp_rule=lrp_rule,
                                       data_mean=self.data_mean,
                                       data_std=self.data_std)
+            
             new_layer.conv.weight.data = layer.weight.data
             new_layer.conv.bias.data = layer.bias.data
 

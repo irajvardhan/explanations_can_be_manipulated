@@ -12,7 +12,9 @@ class Convolutional(nn.Module):
         super(Convolutional, self).__init__()
         self.conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
                               stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias)
-
+        
+        #print('in_channels: ',in_channels)
+        
         self.lrp_rule = lrp_rule
         self.activation_fn = activation_fn
 
@@ -149,7 +151,7 @@ class Convolutional(nn.Module):
         ZB = torch.nn.functional.conv2d(input=self.X, weight=n_weights, bias=None, padding=self.conv.padding,
                                         stride=self.conv.stride, groups=self.conv.groups,
                                         dilation=self.conv.dilation) + 1e-9
-
+       
         SA = self.alpha * R / ZA
         SB = -self.beta * R / ZB
 
