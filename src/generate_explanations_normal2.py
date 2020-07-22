@@ -18,8 +18,11 @@ from torchvision import datasets, transforms
 from PIL import Image
 import random
 
-def np_img_to_tensor(grayscale_img,data_mean,data_std, device):
-    rgb_img = np.repeat(grayscale_img[..., np.newaxis], 3, -1)
+def np_img_to_tensor(input_img,data_mean,data_std, device, num_ch=1):
+    if num_ch == 1:
+        rgb_img = np.repeat(input_img[..., np.newaxis], 3, -1)
+    else:
+        rgb_img = input_img
     im = Image.fromarray(rgb_img)
     x = torchvision.transforms.Normalize(mean=data_mean, std=data_std)(torchvision.transforms.ToTensor()(torchvision.transforms.Resize(224)(im)))
     x = x.unsqueeze(0).to(device)
@@ -36,11 +39,13 @@ def main():
                                 'pattern_attribution', 'grad_times_input'],
                        default='lrp')
     argparser.add_argument('--output_dir', type=str, default='../data/', help='directory to save results to')
-    argparser.add_argument('--dataset', type=str, default='fmnist', help='dataset to generate explanations for')
-    argparser.add_argument('--role', type=str, default='defender', help='defender or attacker', choices=['defender','adversary'])
+    argparser.add_argument('--dataset', type=str, default='fmnist', help='dataset to generate explanations for', choices=['fmnist','cifar'])
+    argparser.add_argument('--role', type=str, default='defender', help='defender or adversary', choices=['defender','adversary'])
     argparser.add_argument('--use_test_set', help='use test set instead of train set', action='store_true')
     argparser.add_argument('--adv_dir', type=str, default='../../xai-adv/data/postndss/{}/{}/target_next/target_{}/{}/', help='directory to load adv samples from. Format: role, dataset, target_class_idx, adv_attack_method')
     argparser.add_argument('--use_all_exp_method', help='use all explanation methods one by one', action='store_true')
+    argparser.add_argument('--class_idx_start', type=int, help='starting index of class', default=0)
+    argparser.add_argument('--class_idx_end', type=int, help='ending index of class', default=10)
 
     args = argparser.parse_args()
 
@@ -52,19 +57,23 @@ def main():
 
     exp_methods = []
     if use_all_exp_method:
-        exp_methods = ['lrp','guided_backprop', 'integrated_grad','pattern_attribution', 'grad_times_input'] # TODO: ADD LRP HERE
+        exp_methods = ['lrp', 'guided_backprop', 'integrated_grad','pattern_attribution', 'grad_times_input'] # TODO: ADD LRP HERE
     else:
         exp_methods.append(args.method)
+    print('dataset is {}'.format(args.dataset))
+    if args.dataset == 'fmnist':
+        (x_train, y_train) ,(x_test, y_test) = keras.datasets.fashion_mnist.load_data()
+        
+    elif args.dataset == 'cifar':
+        (x_train, y_train) ,(x_test, y_test) = keras.datasets.cifar10.load_data()
 
-    (x_train, y_train) ,(x_test, y_test) = keras.datasets.fashion_mnist.load_data()
     if use_test_set:
         print('Generating explanations on test set')
         x_train, y_train = x_test, y_test
 
-    for class_idx in range(10):
-        if class_idx in [6,9]:
+    for class_idx in range(args.class_idx_start, args.class_idx_end):
+        if class_idx in []:
             continue
-        print('\n*************Class Index: {}*************'.format(class_idx))
         for exp_method in exp_methods:
             print('\n--------Computing explanations with {}------------'.format(exp_method))
             method = getattr(ExplainingMethod, exp_method)
@@ -83,25 +92,32 @@ def main():
             num_samples = indices.shape[0]
 
             # expls will store explanations for all the samples
-            expls = np.zeros((num_samples,28,28))
+            if args.dataset == 'fmnist':
+                num_ch = 1
+                side = 28
+            elif args.dataset == 'cifar':
+                num_ch = 3
+                side = 32
+            expls = np.zeros((num_samples, side, side))
+
             print('Starting the procedure for {} samples of class {}'.format(num_samples,class_idx))
             for i,idx in enumerate(indices):
                 if (i+1)%500 == 0:
                     print('Running for sample {}/{}'.format(i+1,num_samples))
-                x = np_img_to_tensor(x_train[idx], data_mean, data_std, device)
+                x = np_img_to_tensor(x_train[idx], data_mean, data_std, device, num_ch)
                 x_adv = x.clone().detach().requires_grad_()
 
                 # obtain the explanation
                 org_expl, org_acc, org_idx = get_expl(model, x, method)
                 org_expl = org_expl.detach().cpu()
 
-                # convert explanation to numpy and subsequently downsize it to 28x28
+                # convert explanation to numpy and subsequently downsize it to sidexside (e.g., 28x28 for FMNIST and 32x32 for CIFAR)
                 org_expl_np = org_expl.numpy()
                 org_expl_np = org_expl_np.reshape(224, 224)
                 im2 = Image.fromarray(org_expl_np)
-                org_expl2 = torchvision.transforms.ToTensor()(torchvision.transforms.Resize(28)(im2))
+                org_expl2 = torchvision.transforms.ToTensor()(torchvision.transforms.Resize(side)(im2))
                 org_expl_np2 = org_expl2.numpy()
-                org_expl_np2 = org_expl_np2.reshape(28,28)
+                org_expl_np2 = org_expl_np2.reshape(side, side)
 
                 expls[i] = org_expl_np2
 

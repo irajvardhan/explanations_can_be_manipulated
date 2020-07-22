@@ -18,8 +18,11 @@ from torchvision import datasets, transforms
 from PIL import Image
 import random
 
-def np_img_to_tensor(grayscale_img,data_mean,data_std, device):
-    rgb_img = np.repeat(grayscale_img[..., np.newaxis], 3, -1)
+def np_img_to_tensor(input_img,data_mean,data_std, device, num_ch=1):
+    if num_ch == 1:
+        rgb_img = np.repeat(input_img[..., np.newaxis], 3, -1)
+    else:
+        rgb_img = input_img
     im = Image.fromarray(rgb_img)
     x = torchvision.transforms.Normalize(mean=data_mean, std=data_std)(torchvision.transforms.ToTensor()(torchvision.transforms.Resize(224)(im)))
     x = x.unsqueeze(0).to(device)
@@ -39,7 +42,7 @@ def main():
     argparser.add_argument('--dataset', type=str, default='fmnist', help='dataset to generate explanations for')
     argparser.add_argument('--role', type=str, default='defender', help='defender or attacker', choices=['defender','adversary'])
     argparser.add_argument('--adv_dir', type=str, default='../../xai-adv/data/postndss/{}/{}/target_next/target_{}/{}/', help='directory to load adv samples from. Format: role, dataset, target_class_idx, adv_attack_method')
-    argparser.add_argument('--attack_method', type=str, default='cwl2/conf_0', help='attack method', choices=['cwl2/conf_0','bim','mim','jsma'])
+    argparser.add_argument('--attack_method', type=str, default='cwl2/conf_0', help='attack method', choices=['cwl2/conf_0','cwlinf/conf_0','cwl0/conf_0','bim','mim','jsma'])
     argparser.add_argument('--use_all_exp_method', help='use all explanation methods one by one', action='store_true')
     argparser.add_argument('--use_all_attack_method', help='use all attack methods one by one', action='store_true')
 
@@ -60,8 +63,18 @@ def main():
         attack_methods = ['cwl2/conf_0','bim','mim']
     else:
         attack_methods.append(args.attack_method)
+
+    # expls will store explanations for all the samples
+    if args.dataset == 'fmnist':
+        num_ch = 1
+        side = 28
+    elif args.dataset == 'cifar10':
+        num_ch = 3
+        side = 32
+
+    print('\n\n$$$$$$ Dataset : {} $$$$$$$\n\n'.format(args.dataset))
     for target_class_idx in range(10):
-        if target_class_idx in [6,9]:
+        if target_class_idx in []:
             continue
         if target_class_idx == 0:
             adv_src_class_idx = 9
@@ -93,27 +106,25 @@ def main():
                 desired_index = random.randint(0,999)
 
                 num_samples = indices.shape[0]
-
-                # expls will store explanations for all the samples
-                expls = np.zeros((num_samples,28,28))
+                expls = np.zeros((num_samples, side, side))
 
                 for i,idx in enumerate(indices):
                     if (i+1)%500 == 0:
                         print('Running for sample {}/{}'.format(i+1,num_samples))
-                    x = np_img_to_tensor(x_train[idx], data_mean, data_std, device)
+                    x = np_img_to_tensor(x_train[idx], data_mean, data_std, device, num_ch)
                     x_adv = x.clone().detach().requires_grad_()
 
                     # obtain the explanation
                     org_expl, org_acc, org_idx = get_expl(model, x, method, desired_index)
                     org_expl = org_expl.detach().cpu()
 
-                    # convert explanation to numpy and subsequently downsize it to 28x28
+                    # convert explanation to numpy and subsequently downsize it to sidexside (e.g., 28x28 for FMNIST and 32x32 for CIFAR)
                     org_expl_np = org_expl.numpy()
                     org_expl_np = org_expl_np.reshape(224, 224)
                     im2 = Image.fromarray(org_expl_np)
-                    org_expl2 = torchvision.transforms.ToTensor()(torchvision.transforms.Resize(28)(im2))
+                    org_expl2 = torchvision.transforms.ToTensor()(torchvision.transforms.Resize(side)(im2))
                     org_expl_np2 = org_expl2.numpy()
-                    org_expl_np2 = org_expl_np2.reshape(28,28)
+                    org_expl_np2 = org_expl_np2.reshape(side, side)
 
                     expls[i] = org_expl_np2
 
