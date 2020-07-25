@@ -127,7 +127,7 @@ def main():
 
         for attack_method in attack_methods:
             print('\n########## Attack Method: {}#########'.format(attack_method))
-            for target_class_idx in range(10):
+            for target_class_idx in range(2, 10):
                 print('\n************* Target Class Index: {} *************'.format(target_class_idx))
 
                 ## Obtain the target explanation, which will be an explanation of a normal example from the TARGET class

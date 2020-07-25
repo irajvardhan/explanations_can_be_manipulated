@@ -38,7 +38,7 @@ def main():
                        choices=['lrp', 'guided_backprop', 'gradient', 'integrated_grad',
                                 'pattern_attribution', 'grad_times_input'],
                        default='lrp')
-    argparser.add_argument('--output_dir', type=str, default='../data/', help='directory to save results to')
+        argparser.add_argument('--output_dir', type=str, default='../data/', help='directory to save results to')
     argparser.add_argument('--dataset', type=str, default='fmnist', help='dataset to generate explanations for', choices=['fmnist','cifar'])
     argparser.add_argument('--role', type=str, default='defender', help='defender or adversary', choices=['defender','adversary'])
     argparser.add_argument('--use_test_set', help='use test set instead of train set', action='store_true')
