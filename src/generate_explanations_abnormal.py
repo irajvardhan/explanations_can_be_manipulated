@@ -60,12 +60,17 @@ def main():
         exp_methods.append(args.method)
     attack_methods = []
     if use_all_attack_method:
-        attack_methods = ['cwl2/conf_0','bim','mim']
+        if args.role == 'defender':
+            attack_methods = ['cwl2/conf_0', 'bim', 'mim']
+        elif args.role == 'adversary':
+            attack_methods = ['cwl2/conf_0', 'cwlinf/conf_0', 'cwl0/conf_0', 'bim', 'mim', 'jsma']
     else:
         attack_methods.append(args.attack_method)
 
+    print('attack methods to be used: ',attack_methods)
+
     # expls will store explanations for all the samples
-    if args.dataset == 'fmnist':
+    if args.dataset in ['mnist','fmnist']:
         num_ch = 1
         side = 28
     elif args.dataset == 'cifar10':
@@ -103,6 +108,10 @@ def main():
                 print('Loading {} adv samples from {} '.format(x_train.shape[0],adv_dir))
                 x_train = (x_train*255).astype(np.uint8)
                 indices = np.array([i for i in range(x_train.shape[0])])
+
+                if args.sample_threshold:
+                    indices = indices[:args.sample_threshold]
+                    print('retaining {} samples'.format(indices.shape[0]))
                 desired_index = random.randint(0,999)
 
                 num_samples = indices.shape[0]

@@ -71,7 +71,7 @@ def main():
         attack_methods.append(args.attack_method)
 
     # expls will store explanations for all the samples
-    if args.dataset == 'fmnist':
+    if args.dataset in ['mnist', 'fmnist']:
         num_ch = 1
         side = 28
     elif args.dataset == 'cifar10':
@@ -106,11 +106,11 @@ def main():
                     adv_src_class_idx = target_class_idx-1
 
                 adv_dir = args.adv_dir.format(args.role, args.dataset, args.target_exp_method, attack_method, str(target_class_idx))
-                filename = 'x_adv2.npy'
+                filename = 'x_adv2.pt'
 
-                x_train = np.load(adv_dir + '/' + filename)
+                x_train = torch.load(adv_dir + '/' + filename)
                 print('Loading {} adv2 samples from {} '.format(x_train.shape[0],adv_dir))
-                x_train = (x_train*255).astype(np.uint8)
+                #x_train = (x_train*255).astype(np.uint8)
                 indices = np.array([i for i in range(x_train.shape[0])])
                 desired_index = random.randint(0,999)
 
@@ -120,22 +120,21 @@ def main():
                 for i,idx in enumerate(indices):
                     if i==0 or (i+1)%5 == 0:
                         print('Running for sample {}/{}'.format(i+1,num_samples))
-                    x = np_img_to_tensor(x_train[idx], data_mean, data_std, device, num_ch)
+                    #x = np_img_to_tensor(x_train[idx], data_mean, data_std, device, num_ch)
+                    x = x_train[idx].to(device)
                     x_adv = x.clone().detach().requires_grad_()
 
                     # obtain the explanation
-                    org_expl, org_acc, org_idx = get_expl(model, x, method, desired_index)
-                    org_expl = org_expl.detach().cpu()
+                    adv_expl, _, _ = get_expl(model,x_adv, method)
+                    adv_expl = adv_expl.detach().cpu()
+                    adv_expl_np = adv_expl.numpy()
+                    adv_expl_np = adv_expl_np.reshape(224, 224)
+                    im2 = Image.fromarray(adv_expl_np)
+                    adv_expl2 = torchvision.transforms.ToTensor()(torchvision.transforms.Resize(side)(im2))
+                    adv_expl_np2 = adv_expl2.numpy()
+                    adv_expl_np2 = adv_expl_np2.reshape(side, side)
 
-                    # convert explanation to numpy and subsequently downsize it to sidexside (e.g., 28x28 for FMNIST and 32x32 for CIFAR)
-                    org_expl_np = org_expl.numpy()
-                    org_expl_np = org_expl_np.reshape(224, 224)
-                    im2 = Image.fromarray(org_expl_np)
-                    org_expl2 = torchvision.transforms.ToTensor()(torchvision.transforms.Resize(side)(im2))
-                    org_expl_np2 = org_expl2.numpy()
-                    org_expl_np2 = org_expl_np2.reshape(side, side)
-
-                    expls[i] = org_expl_np2
+                    expls[i] = adv_expl_np2
 
                 # store the results
                 output_dir = args.output_dir + args.role + '/' + args.dataset + '/' + 'adv2/' + args.target_exp_method + '/' + attack_method + '/' + exp_method + '/from_' + str(adv_src_class_idx) + '/'

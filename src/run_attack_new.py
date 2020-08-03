@@ -80,6 +80,12 @@ def main():
 
         (x_train_orig, y_train_orig), (x_test_orig, y_test_orig) = keras.datasets.fashion_mnist.load_data()
 
+    elif args.dataset == 'mnist':
+        num_ch = 1
+        side = 28
+
+        (x_train_orig, y_train_orig), (x_test_orig, y_test_orig) = keras.datasets.mnist.load_data()
+
     elif args.dataset == 'cifar10':
         num_ch = 3
         side = 32
@@ -131,8 +137,57 @@ def main():
                 print('\n************* Target Class Index: {} *************'.format(target_class_idx))
 
                 ## Obtain the target explanation, which will be an explanation of a normal example from the TARGET class
-                idx = np.where(y_train_orig == target_class_idx)[0][0]
-                grayscale_img_src = x_train_orig[idx]
+                choice = 0
+                if args.dataset == 'fmnist':
+                    if target_exp_method == 'lrp':
+                        choice = 0
+                    elif target_exp_method == 'guided_backprop':
+                        choices = [0,0,0,0,13,3,0,0,0,1]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'integrated_grad':
+                        choices = [0,0,0,77,0,0,0,0,0,0]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'pattern_attribution':
+                        choices = [0,0,0,1,0,0,0,0,0,0]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'grad_times_input':
+                        choices = [0,0,0,6,0,0,0,0,0,0]
+                        choice = choices[target_class_idx]
+                elif args.dataset == 'mnist':
+                    if target_exp_method == 'lrp':
+                        choice = 0
+                    elif target_exp_method == 'guided_backprop':
+                        choices = [0,10,0,0,0,0,2,0,0,0]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'integrated_grad':
+                        choices = [0,0,0,0,0,0,0,0,0,4]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'pattern_attribution':
+                        choices = [0,0,0,0,0,0,0,0,1,0]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'grad_times_input':
+                        choices = [0,0,0,0,0,0,0,0,0,0]
+                        choice = choices[target_class_idx]
+
+                elif args.dataset == 'cifar10':
+                    if target_exp_method == 'lrp':
+                        choices = [6,0,4,0,39,0,3,0,0,1]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'guided_backprop':
+                        choices = [2,0,1,0,0,0,0,0,0,0]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'integrated_grad':
+                        choices = [1,0,2,1,0,0,0,0,0,0]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'pattern_attribution':
+                        choices = [24,0,4,0,1,11,21,9,2,0]
+                        choice = choices[target_class_idx]
+                    elif target_exp_method == 'grad_times_input':
+                        choices = [1,0,2,1,0,0,0,0,0,0]
+                        choice = choices[target_class_idx]
+
+                index = np.where(y_train_orig == target_class_idx)[0][choice]
+                grayscale_img_src = x_train_orig[index]
                 x_target = np_img_to_tensor(grayscale_img_src,data_mean,data_std, device, num_ch)
                 target_expl, _, _ = get_expl(model, x_target, method)
                 target_expl = target_expl.detach()
@@ -146,7 +201,7 @@ def main():
                 indices = np.array([i for i in range(x_train.shape[0])])
                 num_samples = indices.shape[0]
 
-                x_adv2 = np.zeros((num_samples, side, side))
+                x_adv2 = torch.empty(num_samples, 1, 3, 224, 224)
                 succ_on_f_list = []
                 time_taken_list = []
                 distortions = [] # from each x_adv1 to x_adv2
@@ -202,6 +257,8 @@ def main():
                     # test with original model (with relu activations)
                     model.change_beta(None)
 
+                    x_adv2[i] = x_adv
+
                     # find the predicted class of x_adv2
                     x_adv_2_pred = model(x_adv)
                     x_adv_2_pred_class = int(torch.argmax(x_adv_2_pred,axis=1))
@@ -213,18 +270,21 @@ def main():
                     ## We only need x_adv_2 for now so commenting below line
                     #adv_expl, adv_acc, class_idx = get_expl(model, x_adv, method)
 
-                    # get the numpy form of x_adv2
-                    x_adv2_big = x_adv.detach().cpu().numpy()
-                    im2 = Image.fromarray(x_adv2_big[0][0])
-                    x_adv2_small = torchvision.transforms.ToTensor()(torchvision.transforms.Resize(side)(im2))
-                    x_adv2_small_np = x_adv2_small.numpy()
-                    x_adv2_small_np = x_adv2_small_np.reshape(side, side)
+                    if args.dataset in ['mnist','fmnist']:
+                        # get the numpy form of x_adv2
+                        x_adv2_big = x_adv.detach().cpu().numpy()
+                        im2 = Image.fromarray(x_adv2_big[0][0])
+                        x_adv2_small = torchvision.transforms.ToTensor()(torchvision.transforms.Resize(side)(im2))
+                        x_adv2_small_np = x_adv2_small.numpy()
+                        x_adv2_small_np = x_adv2_small_np.reshape(side, side)
 
-                    x_adv2[i] = x_adv2_small_np
+                        # compute distortion
+                        x_src = x_train[idx] / 255.
+                        distortion = np.sum((x_adv2_small_np - x_src)**2)**.5
+                    elif args.dataset == 'cifar10':
+                        distortion = np.mean([float(torch.sum((x_adv[0][0]-x[0][0])**2)**.5), float(torch.sum((x_adv[0][1]-x[0][1])**2)**.5), float(torch.sum((x_adv[0][2]-x[0][2])**2)**.5)])
 
-                    # compute distortion
-                    x_src = x_train[idx] / 255.
-                    distortion = np.sum((x_adv2_small_np - x_src)**2)**.5
+
                     distortions.append(distortion)
                     print('Distortion produced: ', distortion)
 
@@ -239,7 +299,7 @@ def main():
                     os.makedirs(output_dir)
 
                 print('storing results in ',output_dir)
-                np.save(output_dir+'x_adv2.npy', x_adv2)
+                torch.save(x_adv2, output_dir + 'x_adv2.pt')
                 np.save(output_dir+'succ_on_f.npy', succ_on_f_list)
                 np.save(output_dir+'timetaken.npy', mean_time_taken)
                 np.save(output_dir+'mean_distortion.npy', mean_distortion)

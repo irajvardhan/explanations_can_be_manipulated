@@ -38,8 +38,8 @@ def main():
                        choices=['lrp', 'guided_backprop', 'gradient', 'integrated_grad',
                                 'pattern_attribution', 'grad_times_input'],
                        default='lrp')
-        argparser.add_argument('--output_dir', type=str, default='../data/', help='directory to save results to')
-    argparser.add_argument('--dataset', type=str, default='fmnist', help='dataset to generate explanations for', choices=['fmnist','cifar'])
+    argparser.add_argument('--output_dir', type=str, default='../data/', help='directory to save results to')
+    argparser.add_argument('--dataset', type=str, default='fmnist', help='dataset to generate explanations for', choices=['mnist','fmnist','cifar'])
     argparser.add_argument('--role', type=str, default='defender', help='defender or adversary', choices=['defender','adversary'])
     argparser.add_argument('--use_test_set', help='use test set instead of train set', action='store_true')
     argparser.add_argument('--adv_dir', type=str, default='../../xai-adv/data/postndss/{}/{}/target_next/target_{}/{}/', help='directory to load adv samples from. Format: role, dataset, target_class_idx, adv_attack_method')
@@ -55,13 +55,14 @@ def main():
 
     exp_methods = []
     if use_all_exp_method:
-        exp_methods = ['lrp', 'guided_backprop', 'integrated_grad','pattern_attribution', 'grad_times_input'] # TODO: ADD LRP HERE
+        exp_methods = ['lrp', 'guided_backprop', 'integrated_grad','pattern_attribution', 'grad_times_input']
     else:
         exp_methods.append(args.method)
     print('dataset is {}'.format(args.dataset))
     if args.dataset == 'fmnist':
         (x_train, y_train) ,(x_test, y_test) = keras.datasets.fashion_mnist.load_data()
-        
+    elif args.dataset == 'mnist':
+        (x_train, y_train) ,(x_test, y_test) = keras.datasets.mnist.load_data()
     elif args.dataset == 'cifar':
         (x_train, y_train) ,(x_test, y_test) = keras.datasets.cifar10.load_data()
 
@@ -90,7 +91,7 @@ def main():
             num_samples = indices.shape[0]
 
             # expls will store explanations for all the samples
-            if args.dataset == 'fmnist':
+            if args.dataset in ['mnist','fmnist']:
                 num_ch = 1
                 side = 28
             elif args.dataset == 'cifar':
